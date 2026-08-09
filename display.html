@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RÉGIE — Écran staff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0c10;
+    --panel:#12151b;
+    --panel-2:#191d25;
+    --line:#242a35;
+    --text:#f2f4f7;
+    --sub:#7d8896;
+    --amber:#ff8a1e;
+    --green:#2ecc71;
+    --red:#e6394a;
+    --blue:#4ea1ff;
+    --mono:'Space Mono', monospace;
+    --sans:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden;}
+  #app{display:flex;flex-direction:column;height:100vh;width:100vw;}
+
+  /* ---- top status bar ---- */
+  #statusbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:22px 40px;
+    border-bottom:1px solid var(--line);
+    transition:background .4s ease;
+    background:var(--panel);
+  }
+  #statusbar.live{background:linear-gradient(90deg, rgba(46,204,113,.14), rgba(46,204,113,.02));}
+  #statusbar.doors{background:linear-gradient(90deg, rgba(78,161,255,.14), rgba(78,161,255,.02));}
+  #statusbar.intermission{background:linear-gradient(90deg, rgba(255,138,30,.14), rgba(255,138,30,.02));}
+  #statusbar.encore{background:linear-gradient(90deg, rgba(255,138,30,.18), rgba(255,138,30,.02));}
+  #statusbar.end{background:linear-gradient(90deg, rgba(125,136,150,.14), rgba(125,136,150,.02));}
+  #statusbar.before{background:var(--panel);}
+
+  .status-left{display:flex;align-items:center;gap:18px;}
+  .dot{width:16px;height:16px;border-radius:50%;background:var(--sub);flex-shrink:0;}
+  .dot.pulse{animation:pulse 1.4s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 currentColor;opacity:1;}50%{box-shadow:0 0 0 10px transparent;opacity:.6;}}
+  .status-label{font-family:var(--mono);font-size:28px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
+  .status-sub{color:var(--sub);font-size:14px;margin-top:2px;letter-spacing:.5px;}
+
+  .clock{font-family:var(--mono);font-size:34px;font-weight:700;letter-spacing:1px;text-align:right;}
+  .clock .date{display:block;font-size:13px;color:var(--sub);font-weight:400;text-transform:capitalize;margin-top:2px;text-align:right;}
+
+  /* ---- main grid ---- */
+  #main{flex:1;display:grid;grid-template-columns:1.3fr 1fr;gap:1px;background:var(--line);overflow:hidden;}
+  .col{background:var(--bg);display:flex;flex-direction:column;overflow:hidden;}
+
+  /* timer hero */
+  #timer-zone{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;position:relative;}
+  #timer-label{font-size:16px;letter-spacing:3px;text-transform:uppercase;color:var(--sub);margin-bottom:14px;font-weight:600;}
+  #timer-value{font-family:var(--mono);font-size:min(16vw,150px);font-weight:700;letter-spacing:2px;line-height:1;font-variant-numeric:tabular-nums;}
+  #timer-value.warn{color:var(--amber);}
+  #timer-value.over{color:var(--red);}
+  #timer-sub{margin-top:14px;color:var(--sub);font-size:15px;}
+
+  #next{border-top:1px solid var(--line);padding:26px 40px;}
+  #next .eyebrow{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--sub);margin-bottom:8px;font-weight:600;}
+  #next .value{font-size:26px;font-weight:700;}
+
+  /* right column: running order */
+  #order-head{padding:22px 30px 12px;border-bottom:1px solid var(--line);}
+  #order-head .eyebrow{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--sub);font-weight:600;}
+  #order-list{flex:1;overflow-y:auto;padding:10px 20px;}
+  .order-item{display:flex;align-items:baseline;gap:16px;padding:14px 10px;border-bottom:1px solid var(--line);}
+  .order-item .time{font-family:var(--mono);font-size:16px;color:var(--sub);width:64px;flex-shrink:0;}
+  .order-item .name{font-size:17px;font-weight:600;flex:1;}
+  .order-item.done{opacity:.35;}
+  .order-item.done .name{text-decoration:line-through;}
+  .order-item.current{background:var(--panel-2);border-radius:8px;border-bottom:1px solid var(--panel-2);}
+  .order-item.current .time{color:var(--amber);}
+  .order-empty{color:var(--sub);padding:20px 10px;font-size:15px;}
+
+  /* bottom info strip */
+  #strip{display:flex;border-top:1px solid var(--line);background:var(--panel);}
+  .info-cell{flex:1;padding:16px 26px;border-right:1px solid var(--line);}
+  .info-cell:last-child{border-right:none;}
+  .info-cell .eyebrow{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--sub);font-weight:600;margin-bottom:6px;}
+  .info-cell .value{font-size:17px;font-weight:600;font-family:var(--mono);}
+  .info-cell .value.small{font-size:14px;font-weight:400;font-family:var(--sans);color:var(--text);}
+
+  /* announcement overlay */
+  #announce-overlay{
+    position:fixed;inset:0;z-index:50;display:none;
+    align-items:center;justify-content:center;
+    padding:60px;text-align:center;
+  }
+  #announce-overlay.show{display:flex;}
+  #announce-bg{position:absolute;inset:0;}
+  #announce-text{position:relative;font-size:min(7vw,90px);font-weight:800;line-height:1.15;max-width:1400px;text-shadow:0 4px 30px rgba(0,0,0,.5);}
+  #announce-tag{position:absolute;top:40px;left:50%;transform:translateX(-50%);font-family:var(--mono);letter-spacing:4px;text-transform:uppercase;font-size:16px;opacity:.85;}
+
+  .conn{position:fixed;bottom:14px;right:18px;font-size:11px;color:var(--sub);font-family:var(--mono);z-index:60;letter-spacing:1px;}
+  .conn.ok::before{content:"● ";color:var(--green);}
+  .conn.bad::before{content:"● ";color:var(--red);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="statusbar" class="before">
+    <div class="status-left">
+      <div class="dot" id="statusDot"></div>
+      <div>
+        <div class="status-label" id="statusLabel">AVANT SHOW</div>
+        <div class="status-sub" id="statusSub">Écran staff — en attente</div>
+      </div>
+    </div>
+    <div class="clock">
+      <span id="clockTime">--:--:--</span>
+      <span class="date" id="clockDate">—</span>
+    </div>
+  </div>
+
+  <div id="main">
+    <div class="col">
+      <div id="timer-zone">
+        <div id="timer-label">MINUTAGE</div>
+        <div id="timer-value">--:--</div>
+        <div id="timer-sub"></div>
+      </div>
+      <div id="next">
+        <div class="eyebrow">Prochainement</div>
+        <div class="value" id="nextValue">—</div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div id="order-head"><div class="eyebrow">Déroulé</div></div>
+      <div id="order-list"><div class="order-empty">Aucun déroulé configuré</div></div>
+    </div>
+  </div>
+
+  <div id="strip">
+    <div class="info-cell">
+      <div class="eyebrow">Wi-Fi staff</div>
+      <div class="value small" id="wifiValue">—</div>
+    </div>
+    <div class="info-cell">
+      <div class="eyebrow">Météo</div>
+      <div class="value small" id="weatherValue">—</div>
+    </div>
+    <div class="info-cell">
+      <div class="eyebrow">Couvre-feu</div>
+      <div class="value small" id="curfewValue">—</div>
+    </div>
+    <div class="info-cell">
+      <div class="eyebrow">Contact urgence</div>
+      <div class="value small" id="emergencyValue">—</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="announce-overlay">
+  <div id="announce-bg"></div>
+  <div id="announce-tag">ANNONCE</div>
+  <div id="announce-text"></div>
+</div>
+
+<div class="conn bad" id="connIndicator">connexion…</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+// ⚠️ Remplace cette config par celle de TON projet Firebase
+// (la même que celle utilisée pour ton POS, ou un nouveau projet dédié).
+const firebaseConfig = {
+  apiKey: "AIzaSyDSG5LDhOSR2ls5tBD-MbFpslt_-7VSKNc",
+  authDomain: "concert-53cb5.firebaseapp.com",
+  databaseURL: "https://concert-53cb5-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "concert-53cb5",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const concertRef = ref(db, "concertScreen");
+
+const statusMeta = {
+  before:       { label: "AVANT SHOW",     sub: "Portes fermées",           dot: "var(--sub)",  pulse:false },
+  doors:        { label: "OUVERTURE PORTES", sub: "Public en entrée",       dot: "var(--blue)", pulse:true },
+  live:         { label: "EN COURS",       sub: "Concert en direct",        dot: "var(--green)",pulse:true },
+  intermission: { label: "ENTRACTE",       sub: "Pause",                    dot: "var(--amber)",pulse:false },
+  encore:       { label: "RAPPEL",         sub: "Rappel en cours",          dot: "var(--amber)",pulse:true },
+  end:          { label: "TERMINÉ",        sub: "Fin de concert",           dot: "var(--sub)",  pulse:false },
+};
+
+let timerInterval = null;
+
+function fmtDuration(ms){
+  const neg = ms < 0;
+  const abs = Math.abs(ms);
+  const totalSec = Math.floor(abs/1000);
+  const h = Math.floor(totalSec/3600);
+  const m = Math.floor((totalSec%3600)/60);
+  const s = totalSec%60;
+  const pad = n => String(n).padStart(2,'0');
+  const core = h>0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  return (neg ? "+" : "") + core;
+}
+
+function render(data){
+  data = data || {};
+  const st = data.status || "before";
+  const meta = statusMeta[st] || statusMeta.before;
+
+  const bar = document.getElementById("statusbar");
+  bar.className = st;
+  document.getElementById("statusDot").style.background = meta.dot;
+  document.getElementById("statusDot").classList.toggle("pulse", !!meta.pulse);
+  document.getElementById("statusDot").style.color = meta.dot;
+  document.getElementById("statusLabel").textContent = data.statusLabel || meta.label;
+  document.getElementById("statusSub").textContent = data.statusSub || meta.sub;
+
+  // timer
+  clearInterval(timerInterval);
+  const timerLabelEl = document.getElementById("timer-label");
+  const timerValueEl = document.getElementById("timer-value");
+  const timerSubEl = document.getElementById("timer-sub");
+  timerLabelEl.textContent = data.timerLabel || "MINUTAGE";
+
+  if (data.timerEndAt && data.timerRunning) {
+    const update = () => {
+      const remaining = data.timerEndAt - Date.now();
+      timerValueEl.textContent = fmtDuration(remaining);
+      timerValueEl.classList.toggle("over", remaining < 0);
+      timerValueEl.classList.toggle("warn", remaining >= 0 && remaining < 60000);
+      timerSubEl.textContent = remaining < 0 ? "Dépassement" : "Restant";
+    };
+    update();
+    timerInterval = setInterval(update, 1000);
+  } else if (typeof data.timerManualSeconds === "number") {
+    timerValueEl.textContent = fmtDuration(data.timerManualSeconds*1000);
+    timerValueEl.classList.remove("over","warn");
+    timerSubEl.textContent = "";
+  } else {
+    timerValueEl.textContent = "--:--";
+    timerValueEl.classList.remove("over","warn");
+    timerSubEl.textContent = "";
+  }
+
+  document.getElementById("nextValue").textContent = data.nextAct || "—";
+
+  // running order
+  const list = document.getElementById("order-list");
+  const order = data.runningOrder || [];
+  if (!order.length) {
+    list.innerHTML = '<div class="order-empty">Aucun déroulé configuré</div>';
+  } else {
+    list.innerHTML = order.map(item => `
+      <div class="order-item ${item.done ? 'done':''} ${item.current ? 'current':''}">
+        <div class="time">${item.time || ''}</div>
+        <div class="name">${item.name || ''}</div>
+      </div>
+    `).join("");
+  }
+
+  document.getElementById("wifiValue").textContent = data.wifi
+    ? `${data.wifi.ssid || '—'}${data.wifi.pass ? ' / ' + data.wifi.pass : ''}` : '—';
+  document.getElementById("weatherValue").textContent = data.weather || '—';
+  document.getElementById("curfewValue").textContent = data.curfew || '—';
+  document.getElementById("emergencyValue").textContent = data.emergencyContact || '—';
+
+  // announcement overlay
+  const overlay = document.getElementById("announce-overlay");
+  const bg = document.getElementById("announce-bg");
+  const text = document.getElementById("announce-text");
+  if (data.announcement && data.announcement.active && data.announcement.text) {
+    overlay.classList.add("show");
+    const color = data.announcement.color || "amber";
+    const colorMap = { amber:"#ff8a1e", red:"#e6394a", green:"#2ecc71", blue:"#4ea1ff" };
+    const c = colorMap[color] || colorMap.amber;
+    bg.style.background = `radial-gradient(circle at 50% 40%, ${c}22, #0a0c10 75%)`;
+    text.style.color = c;
+    document.getElementById("announce-tag").style.color = c;
+    text.textContent = data.announcement.text;
+  } else {
+    overlay.classList.remove("show");
+  }
+}
+
+onValue(concertRef, (snap) => {
+  document.getElementById("connIndicator").textContent = "synchronisé";
+  document.getElementById("connIndicator").className = "conn ok";
+  render(snap.val());
+}, (err) => {
+  document.getElementById("connIndicator").textContent = "hors ligne";
+  document.getElementById("connIndicator").className = "conn bad";
+});
+
+// clock
+function tickClock(){
+  const now = new Date();
+  document.getElementById("clockTime").textContent = now.toLocaleTimeString('fr-FR');
+  document.getElementById("clockDate").textContent = now.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+}
+tickClock();
+setInterval(tickClock, 1000);
+</script>
+</body>
+</html>
