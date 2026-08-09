@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>RÉGIE — Contrôle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=EB+Garamond:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
+<style>
+  *{-webkit-tap-highlight-color:transparent;}
+  body{padding-bottom:50px;}
+  header{position:sticky;top:0;z-index:10;background:var(--bg);padding:20px 20px 12px;border-bottom:1px solid var(--line);}
+  header h1{font-family:var(--font-display);font-size:16px;letter-spacing:3px;text-transform:uppercase;margin:0 0 3px;color:var(--gold-bright);}
+  header .sub{font-size:13px;color:var(--sub);font-style:italic;}
+  header .conn{display:inline-block;margin-top:8px;}
+  header .links{margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;}
+  header .links a{font-size:11px;color:var(--sub);text-decoration:none;border:1px solid var(--line);padding:4px 10px;border-radius:12px;font-family:var(--font-mono);}
+
+  main{padding:16px;max-width:520px;margin:0 auto;}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:18px;margin-bottom:16px;position:relative;}
+  section h2{font-family:var(--font-display);font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin:0 0 14px;font-weight:600;}
+
+  .status-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .status-btn{
+    border:1px solid var(--line);background:var(--panel-2);color:var(--text);
+    border-radius:4px;padding:14px 10px;font-family:var(--font-body);font-weight:600;font-size:15px;
+    display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;
+  }
+  .status-btn .icon{font-size:20px;}
+  .status-btn.active{outline:2px solid var(--gold);background:#2a2008;}
+
+  label{display:block;font-size:12px;color:var(--sub);margin:12px 0 6px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;font-family:var(--font-display);}
+  label:first-of-type{margin-top:0;}
+  input[type=text], input[type=number], textarea{
+    width:100%;background:var(--bg);border:1px solid var(--line);border-radius:4px;
+    color:var(--text);padding:11px 12px;font-size:16px;font-family:var(--font-body);
+  }
+  textarea{resize:vertical;min-height:70px;}
+  .row{display:flex;gap:10px;}
+  .row > *{flex:1;}
+  .checkbox-row{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--sub);}
+  .checkbox-row input{width:auto;}
+
+  button.primary{
+    width:100%;padding:14px;border:1px solid var(--gold);border-radius:4px;background:var(--gold);
+    color:#1a1206;font-weight:700;font-size:15px;cursor:pointer;margin-top:12px;font-family:var(--font-display);letter-spacing:1px;text-transform:uppercase;
+  }
+  button.secondary{
+    width:100%;padding:13px;border:1px solid var(--line);border-radius:4px;background:transparent;
+    color:var(--text);font-weight:600;font-size:14px;cursor:pointer;margin-top:8px;font-family:var(--font-body);
+  }
+  button.danger{background:var(--crimson);color:#fff;border-color:var(--crimson);}
+  button.clear-danger{background:transparent;color:var(--crimson);border:1px solid var(--crimson);}
+  button.ghost{background:var(--panel-2);color:var(--sub);border:1px solid var(--line);}
+  button:active{transform:scale(.98);}
+
+  .presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .chip{border:1px solid var(--line);background:var(--panel-2);color:var(--text);border-radius:16px;padding:8px 14px;font-size:13px;cursor:pointer;}
+
+  .order-row{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
+  .order-row input.time{flex:0 0 64px;}
+  .order-row input.name{flex:1;min-width:110px;}
+  .order-row .mini-check{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--sub);}
+  .order-row .rm{flex:0 0 32px;height:32px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;color:var(--crimson);font-weight:700;cursor:pointer;}
+
+  .color-picker{display:flex;gap:10px;margin-top:8px;}
+  .color-swatch{width:36px;height:36px;border-radius:50%;border:2px solid transparent;cursor:pointer;}
+  .color-swatch.selected{border-color:#fff;}
+
+  .history-item{font-size:12px;color:var(--sub);padding:8px 0;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);}
+  .history-item:last-child{border-bottom:none;}
+  .history-empty{font-size:12px;color:var(--sub);font-style:italic;}
+
+  .toast{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--panel-2);border:1px solid var(--gold);padding:10px 20px;border-radius:20px;
+    font-size:13px;opacity:0;transition:all .25s ease;pointer-events:none;z-index:100;color:var(--text);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  #pinGate{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;background-image:var(--bg-vignette);}
+  #pinGate h1{font-family:var(--font-display);letter-spacing:3px;text-transform:uppercase;color:var(--gold-bright);font-size:18px;margin-bottom:6px;}
+  #pinGate p{color:var(--sub);font-size:13px;margin-bottom:20px;text-align:center;}
+  #pinGate input{width:220px;text-align:center;letter-spacing:3px;font-family:var(--font-mono);font-size:18px;}
+  #pinGate button{width:220px;margin-top:14px;}
+  #pinError{color:var(--crimson);font-size:12px;margin-top:10px;min-height:16px;}
+</style>
+</head>
+<body>
+
+<div id="pinGate">
+  <h1>Accès régie</h1>
+  <p>Code d'accès requis pour piloter l'écran</p>
+  <input type="password" id="pinInput" placeholder="Code d'accès" inputmode="text">
+  <button class="primary" id="pinSubmit">Entrer</button>
+  <div id="pinError"></div>
+</div>
+
+<header>
+  <h1>Régie — Contrôle</h1>
+  <div class="sub">Pilote l'écran staff en temps réel</div>
+  <div class="conn bad" id="connIndicator">connexion…</div>
+  <div class="links">
+    <a href="display.html" target="_blank">Écran régie ↗</a>
+    <a href="loges.html" target="_blank">Écran loges ↗</a>
+    <a href="public.html" target="_blank">Écran public ↗</a>
+  </div>
+</header>
+
+<main>
+
+  <section>
+    <h2>État du spectacle</h2>
+    <div class="status-grid" id="statusGrid">
+      <button class="status-btn" data-status="before"><span class="icon">🏰</span>Avant spectacle</button>
+      <button class="status-btn" data-status="doors"><span class="icon">🚪</span>Portes ouvertes</button>
+      <button class="status-btn" data-status="live"><span class="icon">🔥</span>En cours</button>
+      <button class="status-btn" data-status="intermission"><span class="icon">⏸</span>Entracte</button>
+      <button class="status-btn" data-status="encore"><span class="icon">⚔</span>Rappel</button>
+      <button class="status-btn" data-status="end"><span class="icon">🏁</span>Terminé</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Minutage</h2>
+    <label>Libellé</label>
+    <input type="text" id="timerLabel" placeholder="Ex: Avant l'entrée en scène">
+    <label>Durée (minutes)</label>
+    <input type="number" id="timerMinutes" placeholder="15" min="0" step="0.5">
+    <div class="checkbox-row">
+      <input type="checkbox" id="timerPublic">
+      <label style="margin:0;text-transform:none;font-size:13px;">Afficher aussi ce minuteur sur l'écran public</label>
+    </div>
+    <div class="row">
+      <button class="primary" id="btnStartTimer">Démarrer</button>
+      <button class="secondary" id="btnStopTimer">Arrêter</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Annonce plein écran</h2>
+    <label>Texte de l'annonce</label>
+    <textarea id="announceText" placeholder="Ex: 5 MINUTES AVANT L'ENTRÉE EN SCÈNE"></textarea>
+    <div class="color-picker" id="colorPicker">
+      <div class="color-swatch selected" data-color="gold" style="background:var(--gold)"></div>
+      <div class="color-swatch" data-color="crimson" style="background:var(--crimson)"></div>
+      <div class="color-swatch" data-color="forest" style="background:var(--forest)"></div>
+      <div class="color-swatch" data-color="steel" style="background:var(--steel)"></div>
+    </div>
+    <div class="presets">
+      <div class="chip" data-preset="5 MINUTES AVANT ENTRÉE EN SCÈNE">5 min avant scène</div>
+      <div class="chip" data-preset="CAVALERIE EN PLACE">Cavalerie en place</div>
+      <div class="chip" data-preset="PYROTECHNIE ARMÉE — SILENCE RADIO">Pyro armée</div>
+      <div class="chip" data-preset="PAUSE TECHNIQUE — RESTEZ EN PLACE">Pause technique</div>
+    </div>
+    <button class="primary" id="btnAnnounce">Afficher l'annonce</button>
+    <button class="secondary" id="btnClearAnnounce">Effacer l'annonce</button>
+
+    <label style="margin-top:18px;">Dernières annonces envoyées</label>
+    <div id="historyList"><div class="history-empty">Aucune annonce envoyée</div></div>
+  </section>
+
+  <section>
+    <h2>🚨 Alerte d'urgence</h2>
+    <label>Message d'alerte (optionnel)</label>
+    <input type="text" id="emergencyText" placeholder="ÉVACUATION — SUIVEZ LES CONSIGNES">
+    <button class="danger" id="btnEmergency">Déclencher l'alerte plein écran</button>
+    <button class="clear-danger" id="btnClearEmergency">Lever l'alerte d'urgence</button>
+  </section>
+
+  <section>
+    <h2>Prochainement</h2>
+    <input type="text" id="nextAct" placeholder="Ex: Entrée de la cavalerie">
+    <button class="secondary" id="btnSaveNext">Enregistrer</button>
+  </section>
+
+  <section>
+    <h2>Déroulé du spectacle</h2>
+    <div id="orderRows"></div>
+    <button class="ghost" id="btnAddRow" style="margin-top:4px;">+ Ajouter une ligne</button>
+    <button class="secondary" id="btnSaveOrder">Enregistrer le déroulé</button>
+  </section>
+
+  <section>
+    <h2>Infos spectacle</h2>
+    <label>Tombée de la nuit</label>
+    <input type="text" id="nightfall" placeholder="Ex: 21h47">
+    <label>Plan de repli intempéries</label>
+    <input type="text" id="planB" placeholder="Ex: Actif — scénario pluie B">
+    <label>Cavalerie / animaux</label>
+    <input type="text" id="cavalry" placeholder="Ex: 12 chevaux, 3 rapaces — en place">
+    <label>Pyrotechnie</label>
+    <input type="text" id="pyro" placeholder="Ex: Armée / Désarmée / RAS">
+    <label>Figurants en scène</label>
+    <input type="text" id="figurants" placeholder="Ex: 140 en costume">
+    <label>Canal radio staff</label>
+    <input type="text" id="radioChannel" placeholder="Ex: Canal 3">
+    <button class="secondary" id="btnSaveShowInfo">Enregistrer</button>
+  </section>
+
+  <section>
+    <h2>Infos bandeau bas d'écran</h2>
+    <label>Wi-Fi — réseau</label>
+    <input type="text" id="wifiSsid" placeholder="STAFF-SPECTACLE">
+    <label>Wi-Fi — mot de passe</label>
+    <input type="text" id="wifiPass" placeholder="motdepasse">
+    <label>Météo</label>
+    <input type="text" id="weather" placeholder="Ex: 18°C, dégagé">
+    <label>Contact urgence</label>
+    <input type="text" id="emergencyContact" placeholder="Ex: Sécurité — 06 12 34 56 78">
+    <button class="secondary" id="btnSaveInfo">Enregistrer les infos</button>
+  </section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { firebaseConfig, DB_PATH, CONTROL_PIN } from "./config.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+// --- PIN gate ---
+const gate = document.getElementById("pinGate");
+if (sessionStorage.getItem("regie_pin_ok") === "1") {
+  gate.style.display = "none";
+}
+document.getElementById("pinSubmit").addEventListener("click", checkPin);
+document.getElementById("pinInput").addEventListener("keydown", (e) => { if (e.key === "Enter") checkPin(); });
+function checkPin(){
+  const val = document.getElementById("pinInput").value;
+  if (val === CONTROL_PIN) {
+    sessionStorage.setItem("regie_pin_ok", "1");
+    gate.style.display = "none";
+  } else {
+    document.getElementById("pinError").textContent = "Code incorrect";
+  }
+}
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const concertRef = ref(db, DB_PATH);
+
+let currentData = {};
+let selectedColor = "gold";
+
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 1600);
+}
+
+function push(patch){
+  update(concertRef, { ...patch, updatedAt: Date.now() })
+    .then(() => showToast("Mis à jour ✓"))
+    .catch(() => showToast("Erreur de connexion"));
+}
+
+// --- status buttons ---
+document.querySelectorAll(".status-btn").forEach(btn => {
+  btn.addEventListener("click", () => push({ status: btn.dataset.status }));
+});
+function highlightStatus(status){
+  document.querySelectorAll(".status-btn").forEach(b => b.classList.toggle("active", b.dataset.status === status));
+}
+
+// --- timer ---
+document.getElementById("btnStartTimer").addEventListener("click", () => {
+  const minutes = parseFloat(document.getElementById("timerMinutes").value || "0");
+  const label = document.getElementById("timerLabel").value || "MINUTAGE";
+  const isPublic = document.getElementById("timerPublic").checked;
+  const endAt = Date.now() + minutes * 60000;
+  push({ timerEndAt: endAt, timerRunning: true, timerLabel: label, timerPublic: isPublic });
+});
+document.getElementById("btnStopTimer").addEventListener("click", () => push({ timerRunning: false }));
+
+// --- announcement ---
+document.getElementById("colorPicker").addEventListener("click", (e) => {
+  const sw = e.target.closest(".color-swatch");
+  if (!sw) return;
+  selectedColor = sw.dataset.color;
+  document.querySelectorAll(".color-swatch").forEach(s => s.classList.remove("selected"));
+  sw.classList.add("selected");
+});
+document.querySelectorAll(".presets .chip").forEach(chip => {
+  chip.addEventListener("click", () => { document.getElementById("announceText").value = chip.dataset.preset; });
+});
+document.getElementById("btnAnnounce").addEventListener("click", () => {
+  const text = document.getElementById("announceText").value.trim();
+  if (!text) return showToast("Écris un texte d'abord");
+  const historyEntry = { text, color: selectedColor, time: Date.now() };
+  const newHistory = [historyEntry, ...(currentData.history || [])].slice(0, 8);
+  push({ announcement: { text, color: selectedColor, active: true }, history: newHistory });
+});
+document.getElementById("btnClearAnnounce").addEventListener("click", () => {
+  push({ announcement: { text: "", color: selectedColor, active: false } });
+});
+
+// --- emergency (separate from announcement, with dedicated clear) ---
+document.getElementById("btnEmergency").addEventListener("click", () => {
+  const text = document.getElementById("emergencyText").value.trim() || "ALERTE — SUIVEZ LES CONSIGNES DE SÉCURITÉ";
+  push({ emergency: { active: true, text } });
+});
+document.getElementById("btnClearEmergency").addEventListener("click", () => {
+  push({ emergency: { active: false, text: "" } });
+});
+
+// --- next act ---
+document.getElementById("btnSaveNext").addEventListener("click", () => {
+  push({ nextAct: document.getElementById("nextAct").value });
+});
+
+// --- running order ---
+function addOrderRow(time="", name="", current=false, done=false){
+  const wrap = document.getElementById("orderRows");
+  const row = document.createElement("div");
+  row.className = "order-row";
+  row.innerHTML = `
+    <input type="text" class="time" placeholder="20h30" value="${time}">
+    <input type="text" class="name" placeholder="Nom de la scène / tableau" value="${name}">
+    <label class="mini-check"><input type="checkbox" class="cur" ${current ? "checked":""}>en cours</label>
+    <label class="mini-check"><input type="checkbox" class="done" ${done ? "checked":""}>fait</label>
+    <button class="rm">✕</button>
+  `;
+  row.querySelector(".rm").addEventListener("click", () => row.remove());
+  wrap.appendChild(row);
+}
+document.getElementById("btnAddRow").addEventListener("click", () => addOrderRow());
+document.getElementById("btnSaveOrder").addEventListener("click", () => {
+  const rows = [...document.querySelectorAll(".order-row")].map(r => ({
+    time: r.querySelector(".time").value,
+    name: r.querySelector(".name").value,
+    current: r.querySelector(".cur").checked,
+    done: r.querySelector(".done").checked,
+  })).filter(r => r.name.trim() !== "");
+  push({ runningOrder: rows });
+});
+
+// --- show info (Puy du Fou style fields) ---
+document.getElementById("btnSaveShowInfo").addEventListener("click", () => {
+  push({
+    nightfall: document.getElementById("nightfall").value,
+    planB: document.getElementById("planB").value,
+    cavalry: document.getElementById("cavalry").value,
+    pyro: document.getElementById("pyro").value,
+    figurants: document.getElementById("figurants").value,
+    radioChannel: document.getElementById("radioChannel").value,
+  });
+});
+
+// --- bottom strip info ---
+document.getElementById("btnSaveInfo").addEventListener("click", () => {
+  push({
+    wifi: {
+      ssid: document.getElementById("wifiSsid").value,
+      pass: document.getElementById("wifiPass").value,
+    },
+    weather: document.getElementById("weather").value,
+    emergencyContact: document.getElementById("emergencyContact").value,
+  });
+});
+
+function renderHistory(history){
+  const el = document.getElementById("historyList");
+  if (!history || !history.length) {
+    el.innerHTML = '<div class="history-empty">Aucune annonce envoyée</div>';
+    return;
+  }
+  el.innerHTML = history.map(h => {
+    const t = new Date(h.time);
+    const time = t.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+    return `<div class="history-item">${time} — ${h.text}</div>`;
+  }).join("");
+}
+
+// --- sync form fields with current DB state ---
+let formsInitialized = false;
+onValue(concertRef, (snap) => {
+  document.getElementById("connIndicator").textContent = "synchronisé";
+  document.getElementById("connIndicator").className = "conn ok";
+  const data = snap.val() || {};
+  currentData = data;
+  highlightStatus(data.status);
+  renderHistory(data.history);
+
+  if (!formsInitialized) {
+    formsInitialized = true;
+    document.getElementById("nextAct").value = data.nextAct || "";
+    document.getElementById("wifiSsid").value = data.wifi?.ssid || "";
+    document.getElementById("wifiPass").value = data.wifi?.pass || "";
+    document.getElementById("weather").value = data.weather || "";
+    document.getElementById("emergencyContact").value = data.emergencyContact || "";
+    document.getElementById("nightfall").value = data.nightfall || "";
+    document.getElementById("planB").value = data.planB || "";
+    document.getElementById("cavalry").value = data.cavalry || "";
+    document.getElementById("pyro").value = data.pyro || "";
+    document.getElementById("figurants").value = data.figurants || "";
+    document.getElementById("radioChannel").value = data.radioChannel || "";
+    document.getElementById("emergencyText").value = data.emergency?.text || "";
+
+    const order = data.runningOrder || [];
+    if (order.length) {
+      order.forEach(o => addOrderRow(o.time, o.name, o.current, o.done));
+    } else {
+      addOrderRow(); addOrderRow();
+    }
+  }
+}, () => {
+  document.getElementById("connIndicator").textContent = "hors ligne";
+  document.getElementById("connIndicator").className = "conn bad";
+});
+</script>
+</body>
+</html>
