@@ -31,6 +31,18 @@
 
   .clock{font-family:var(--font-mono);font-size:32px;font-weight:700;letter-spacing:1px;text-align:right;color:var(--gold-bright);}
   .clock .date{display:block;font-size:13px;color:var(--sub);font-weight:400;text-transform:capitalize;margin-top:3px;font-family:var(--font-body);font-style:italic;}
+  #elapsed{font-family:var(--font-mono);font-size:13px;color:var(--sub);margin-top:6px;text-align:right;}
+
+  #show-badge-row{padding:10px 44px 0;}
+
+  /* cue calling banner (standby / go) */
+  #cue-banner{
+    display:none;width:100%;align-items:center;justify-content:center;gap:16px;padding:12px;
+    font-family:var(--font-display);letter-spacing:3px;text-transform:uppercase;font-size:20px;font-weight:700;
+  }
+  #cue-banner.standby{display:flex;background:rgba(201,162,39,.16);color:var(--gold-bright);border-bottom:1px solid var(--gold);}
+  #cue-banner.go{display:flex;background:rgba(76,122,79,.28);color:#d8ffda;border-bottom:1px solid var(--forest);animation:go-flash .5s ease-in-out 4;}
+  @keyframes go-flash{0%,100%{background-color:rgba(76,122,79,.28);}50%{background-color:rgba(76,122,79,.55);}}
 
   /* ---- main grid ---- */
   #main{flex:1;display:grid;grid-template-columns:1.25fr 1fr;gap:1px;background:var(--line-soft);overflow:hidden;}
@@ -61,6 +73,9 @@
   .order-item.current{background:var(--panel-2);border-radius:6px;border-bottom:1px solid var(--panel-2);}
   .order-item.current .time{color:var(--gold-bright);}
   .order-item.current::before{content:"▸";color:var(--gold);margin-right:-4px;}
+  .order-item .note{display:block;font-size:13px;color:var(--sub);font-style:italic;margin-top:2px;font-family:var(--font-body);}
+  .order-item .remaining{font-family:var(--font-mono);font-size:13px;color:var(--gold-bright);margin-top:2px;}
+  .mode-flag{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--sub);font-family:var(--font-mono);margin-left:8px;}
   .order-empty{color:var(--sub);padding:20px 10px;font-size:15px;font-style:italic;}
 
   /* bottom info strip */
@@ -90,6 +105,7 @@
 </head>
 <body>
 <div id="app">
+  <div id="cue-banner"></div>
 
   <div id="statusbar" class="bg-tone-before">
     <div class="status-left">
@@ -97,11 +113,13 @@
       <div>
         <div class="status-label" id="statusLabel">AVANT SPECTACLE</div>
         <div class="status-sub" id="statusSub">Écran de régie — en attente</div>
+        <div class="show-badge" id="showBadge" style="display:none;margin-top:6px;"></div>
       </div>
     </div>
     <div class="clock">
       <span id="clockTime">--:--:--</span>
       <span class="date" id="clockDate">—</span>
+      <div id="elapsed"></div>
     </div>
   </div>
 
@@ -125,7 +143,7 @@
     </div>
 
     <div class="col">
-      <div id="order-head"><div class="eyebrow">Déroulé du spectacle</div></div>
+      <div id="order-head"><div class="eyebrow">Déroulé du spectacle<span class="mode-flag" id="modeFlag"></span></div></div>
       <div id="order-list"><div class="order-empty">Aucun déroulé configuré</div></div>
     </div>
   </div>
@@ -155,40 +173,112 @@
 
 <script type="module">
 import { firebaseConfig, DB_PATH } from "./config.js";
+import { statusMeta, fmtDuration, announceColorMap, computeSceneState } from "./shared.js";
+import { initSoundButton, beepAnnounce, beepEmergency, beepCue, beepGo, beepStatus } from "./sound.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+initSoundButton();
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const concertRef = ref(db, DB_PATH);
 
-const statusMeta = {
-  before:       { label: "AVANT SPECTACLE", sub: "Portes fermées",        icon:"🏰", tone:"before" },
-  doors:        { label: "OUVERTURE PORTES", sub: "Public en entrée",     icon:"🚪", tone:"doors" },
-  live:         { label: "EN COURS",         sub: "Spectacle en direct",  icon:"🔥", tone:"live" },
-  intermission: { label: "ENTRACTE",         sub: "Pause",                icon:"⏸", tone:"intermission" },
-  encore:       { label: "RAPPEL",           sub: "Rappel en cours",      icon:"⚔", tone:"encore" },
-  end:          { label: "TERMINÉ",          sub: "Fin de spectacle",     icon:"🏁", tone:"end" },
-};
-
 let timerInterval = null;
+let elapsedInterval = null;
+let sceneInterval = null;
+let prevAnnounceActive = false;
+let prevEmergencyActive = false;
+let prevCueTs = 0;
+let prevStatus = null;
+let prevSceneIndex = null;
 
-function fmtDuration(ms){
-  const neg = ms < 0;
-  const abs = Math.abs(ms);
-  const totalSec = Math.floor(abs/1000);
-  const h = Math.floor(totalSec/3600);
-  const m = Math.floor((totalSec%3600)/60);
-  const s = totalSec%60;
-  const pad = n => String(n).padStart(2,'0');
-  const core = h>0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
-  return (neg ? "+" : "") + core;
+function renderOrderAndNext(data){
+  const list = document.getElementById("order-list");
+  const order = data.runningOrder || [];
+  const { currentIndex, remainingMs } = computeSceneState(data);
+
+  document.getElementById("modeFlag").textContent = data.cueMode === "manual" ? "Main manuelle" : (order.length ? "Auto" : "");
+
+  if (!order.length) {
+    list.innerHTML = '<div class="order-empty">Aucun déroulé configuré</div>';
+  } else {
+    list.innerHTML = order.map((item, i) => `
+      <div class="order-item ${i < currentIndex ? 'done':''} ${i === currentIndex ? 'current':''}">
+        <div style="flex:1;">
+          <div class="time">${item.time || ''}</div>
+          <div class="name">${item.name || ''}</div>
+          ${item.note ? `<span class="note">${item.note}</span>` : ''}
+          ${i === currentIndex && remainingMs !== null ? `<span class="remaining">Reste ${fmtDuration(remainingMs)}</span>` : ''}
+        </div>
+      </div>
+    `).join("");
+  }
+
+  const next = currentIndex >= 0 && currentIndex + 1 < order.length ? order[currentIndex + 1] : null;
+  document.getElementById("nextValue").textContent = next ? next.name : (data.nextAct || "—");
+
+  return currentIndex;
 }
 
 function render(data){
   data = data || {};
   const st = data.status || "before";
   const meta = statusMeta[st] || statusMeta.before;
+
+  // --- sound notifications on state transitions ---
+  const announceActive = !!(data.announcement && data.announcement.active && data.announcement.text);
+  if (announceActive && !prevAnnounceActive) beepAnnounce();
+  prevAnnounceActive = announceActive;
+
+  const emergencyActive = !!(data.emergency && data.emergency.active);
+  if (emergencyActive && !prevEmergencyActive) beepEmergency();
+  prevEmergencyActive = emergencyActive;
+
+  const cueTs = data.cue?.ts || 0;
+  if (cueTs && cueTs !== prevCueTs) {
+    if (data.cue.state === "go") beepGo(); else if (data.cue.state === "standby") beepCue();
+  }
+  prevCueTs = cueTs;
+
+  if (prevStatus !== null && st !== prevStatus && (st === "suspended" || st === "cancelled" || prevStatus === "suspended")) beepStatus();
+  prevStatus = st;
+
+  // --- cue banner (standby / go) ---
+  const cueBanner = document.getElementById("cue-banner");
+  if (data.cue && (data.cue.state === "standby" || data.cue.state === "go")) {
+    cueBanner.className = data.cue.state;
+    cueBanner.textContent = (data.cue.state === "go" ? "▶ TOP — " : "⏳ STANDBY — ") + (data.cue.label || "");
+  } else {
+    cueBanner.className = "";
+  }
+
+  // --- active show badge ---
+  const showBadge = document.getElementById("showBadge");
+  if (data.activeShowName) {
+    showBadge.style.display = "block";
+    showBadge.textContent = `${data.activeShowIcon || "🎭"} ${data.activeShowName}`;
+    showBadge.style.color = announceColorMap[data.activeShowColor] || announceColorMap.gold;
+  } else {
+    showBadge.style.display = "none";
+  }
+
+  // --- elapsed show time since "live" started ---
+  clearInterval(elapsedInterval);
+  const elapsedEl = document.getElementById("elapsed");
+  if (data.liveStartedAt) {
+    const update = () => {
+      const s = Math.floor((Date.now() - data.liveStartedAt) / 1000);
+      const h = String(Math.floor(s/3600)).padStart(2,'0');
+      const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
+      const sec = String(s%60).padStart(2,'0');
+      elapsedEl.textContent = `Écoulé : ${h}:${m}:${sec}`;
+    };
+    update();
+    elapsedInterval = setInterval(update, 1000);
+  } else {
+    elapsedEl.textContent = "";
+  }
 
   const bar = document.getElementById("statusbar");
   bar.className = "bg-tone-" + meta.tone;
@@ -222,7 +312,6 @@ function render(data){
     timerSubEl.textContent = "";
   }
 
-  document.getElementById("nextValue").textContent = data.nextAct || "—";
   document.getElementById("nightfallValue").textContent = data.nightfall || "—";
   document.getElementById("planBValue").textContent = data.planB || "—";
   document.getElementById("cavalryValue").textContent = data.cavalry || "—";
@@ -230,19 +319,15 @@ function render(data){
   document.getElementById("radioValue").textContent = data.radioChannel || "—";
   document.getElementById("figurantsValue").textContent = data.figurants || "—";
 
-  // running order
-  const list = document.getElementById("order-list");
-  const order = data.runningOrder || [];
-  if (!order.length) {
-    list.innerHTML = '<div class="order-empty">Aucun déroulé configuré</div>';
-  } else {
-    list.innerHTML = order.map(item => `
-      <div class="order-item ${item.done ? 'done':''} ${item.current ? 'current':''}">
-        <div class="time">${item.time || ''}</div>
-        <div class="name">${item.name || ''}</div>
-      </div>
-    `).join("");
-  }
+  // running order — recalculé chaque seconde pour avancer automatiquement
+  clearInterval(sceneInterval);
+  const tickOrder = () => {
+    const idx = renderOrderAndNext(data);
+    if (prevSceneIndex !== null && idx !== prevSceneIndex && idx >= 0) beepCue();
+    prevSceneIndex = idx;
+  };
+  tickOrder();
+  sceneInterval = setInterval(tickOrder, 1000);
 
   document.getElementById("wifiValue").textContent = data.wifi
     ? `${data.wifi.ssid || '—'}${data.wifi.pass ? ' / ' + data.wifi.pass : ''}` : '—';
@@ -256,8 +341,7 @@ function render(data){
   if (data.announcement && data.announcement.active && data.announcement.text) {
     overlay.classList.add("show");
     const color = data.announcement.color || "gold";
-    const colorMap = { gold:"var(--gold-bright)", crimson:"var(--crimson)", forest:"var(--forest)", steel:"var(--steel)" };
-    const c = colorMap[color] || colorMap.gold;
+    const c = announceColorMap[color] || announceColorMap.gold;
     bg.style.background = `radial-gradient(circle at 50% 40%, color-mix(in srgb, ${c} 18%, transparent), #0c0906 78%)`;
     text.style.color = c;
     document.getElementById("announce-tag").style.color = c;

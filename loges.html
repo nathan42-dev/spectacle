@@ -25,10 +25,23 @@
   #timer-value.over{color:var(--crimson);}
   #timer-sub{margin-top:10px;color:var(--sub);font-size:18px;font-style:italic;}
 
-  #next{margin-top:44px;}
-  #next .value{font-size:34px;font-weight:600;margin-top:10px;font-family:var(--font-display);}
+  #current-scene{margin-top:36px;}
+  #current-scene .value{font-size:40px;font-weight:700;margin-top:10px;font-family:var(--font-display);color:var(--gold-bright);}
+  #current-scene .note{display:block;font-size:16px;color:var(--sub);font-style:italic;margin-top:6px;}
+  #current-scene .remaining{display:block;font-family:var(--font-mono);font-size:16px;color:var(--sub);margin-top:8px;}
+
+  #next{margin-top:30px;}
+  #next .value{font-size:26px;font-weight:600;margin-top:8px;font-family:var(--font-display);color:var(--text);}
 
   #clock{position:fixed;top:24px;right:30px;font-family:var(--font-mono);font-size:20px;color:var(--gold-bright);}
+
+  #cue-banner{
+    display:none;width:100%;align-items:center;justify-content:center;gap:16px;padding:14px;
+    font-family:var(--font-display);letter-spacing:3px;text-transform:uppercase;font-size:22px;font-weight:700;
+  }
+  #cue-banner.standby{display:flex;background:rgba(201,162,39,.16);color:var(--gold-bright);border-bottom:1px solid var(--gold);}
+  #cue-banner.go{display:flex;background:rgba(76,122,79,.28);color:#d8ffda;border-bottom:1px solid var(--forest);animation:go-flash .5s ease-in-out 4;}
+  @keyframes go-flash{0%,100%{background-color:rgba(76,122,79,.28);}50%{background-color:rgba(76,122,79,.55);}}
 
   #announce-overlay{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:60px;text-align:center;}
   #announce-overlay.show{display:flex;}
@@ -48,16 +61,24 @@
 </head>
 <body>
 <div id="app">
+  <div id="cue-banner"></div>
 
   <div id="statusbar" class="bg-tone-before">
     <div class="badge-icon" id="statusIcon">🏰</div>
     <div class="status-label" id="statusLabel">AVANT SPECTACLE</div>
     <div class="status-sub" id="statusSub">En attente</div>
+    <div class="show-badge" id="showBadge" style="display:none;margin-top:8px;"></div>
   </div>
 
   <div id="center">
     <div id="timer-value">--:--</div>
     <div id="timer-sub"></div>
+    <div id="current-scene">
+      <div class="eyebrow">Scène en cours</div>
+      <div class="value" id="currentSceneValue">—</div>
+      <span class="note" id="currentSceneNote"></span>
+      <span class="remaining" id="currentSceneRemaining"></span>
+    </div>
     <div id="next">
       <div class="eyebrow">Prochaine entrée en scène</div>
       <div class="value" id="nextValue">—</div>
@@ -83,39 +104,77 @@
 
 <script type="module">
 import { firebaseConfig, DB_PATH } from "./config.js";
+import { statusMeta, fmtDuration, announceColorMap, computeSceneState } from "./shared.js";
+import { initSoundButton, beepAnnounce, beepEmergency, beepCue, beepGo, beepStatus } from "./sound.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+initSoundButton();
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const concertRef = ref(db, DB_PATH);
 
-const statusMeta = {
-  before:       { label: "AVANT SPECTACLE", sub: "Portes fermées",       icon:"🏰", tone:"before" },
-  doors:        { label: "OUVERTURE PORTES", sub: "Public en entrée",    icon:"🚪", tone:"doors" },
-  live:         { label: "EN SCÈNE",         sub: "Spectacle en direct", icon:"🔥", tone:"live" },
-  intermission: { label: "ENTRACTE",         sub: "Pause",               icon:"⏸", tone:"intermission" },
-  encore:       { label: "RAPPEL",           sub: "Rappel en cours",     icon:"⚔", tone:"encore" },
-  end:          { label: "TERMINÉ",          sub: "Fin de spectacle",    icon:"🏁", tone:"end" },
-};
-
 let timerInterval = null;
-function fmtDuration(ms){
-  const neg = ms < 0;
-  const abs = Math.abs(ms);
-  const totalSec = Math.floor(abs/1000);
-  const h = Math.floor(totalSec/3600);
-  const m = Math.floor((totalSec%3600)/60);
-  const s = totalSec%60;
-  const pad = n => String(n).padStart(2,'0');
-  const core = h>0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
-  return (neg ? "+" : "") + core;
+let sceneInterval = null;
+let prevAnnounceActive = false;
+let prevEmergencyActive = false;
+let prevCueTs = 0;
+let prevStatus = null;
+let prevSceneIndex = null;
+
+function renderScene(data){
+  const order = data.runningOrder || [];
+  const { currentIndex, remainingMs } = computeSceneState(data);
+  const current = currentIndex >= 0 ? order[currentIndex] : null;
+  const next = currentIndex >= 0 && currentIndex + 1 < order.length ? order[currentIndex + 1] : null;
+
+  document.getElementById("currentSceneValue").textContent = current ? current.name : "—";
+  document.getElementById("currentSceneNote").textContent = current?.note || "";
+  document.getElementById("currentSceneRemaining").textContent = (current && remainingMs !== null) ? `Reste ${fmtDuration(remainingMs)}` : "";
+  document.getElementById("nextValue").textContent = next ? next.name : (data.nextAct || "—");
+
+  return currentIndex;
 }
 
 function render(data){
   data = data || {};
   const st = data.status || "before";
   const meta = statusMeta[st] || statusMeta.before;
+
+  const announceActive = !!(data.announcement && data.announcement.active && data.announcement.text);
+  if (announceActive && !prevAnnounceActive) beepAnnounce();
+  prevAnnounceActive = announceActive;
+
+  const emergencyActive = !!(data.emergency && data.emergency.active);
+  if (emergencyActive && !prevEmergencyActive) beepEmergency();
+  prevEmergencyActive = emergencyActive;
+
+  const cueTs = data.cue?.ts || 0;
+  if (cueTs && cueTs !== prevCueTs) {
+    if (data.cue.state === "go") beepGo(); else if (data.cue.state === "standby") beepCue();
+  }
+  prevCueTs = cueTs;
+
+  if (prevStatus !== null && st !== prevStatus && (st === "suspended" || st === "cancelled" || prevStatus === "suspended")) beepStatus();
+  prevStatus = st;
+
+  const cueBanner = document.getElementById("cue-banner");
+  if (data.cue && (data.cue.state === "standby" || data.cue.state === "go")) {
+    cueBanner.className = data.cue.state;
+    cueBanner.textContent = (data.cue.state === "go" ? "▶ TOP — " : "⏳ STANDBY — ") + (data.cue.label || "");
+  } else {
+    cueBanner.className = "";
+  }
+
+  const showBadge = document.getElementById("showBadge");
+  if (data.activeShowName) {
+    showBadge.style.display = "block";
+    showBadge.textContent = `${data.activeShowIcon || "🎭"} ${data.activeShowName}`;
+    showBadge.style.color = announceColorMap[data.activeShowColor] || announceColorMap.gold;
+  } else {
+    showBadge.style.display = "none";
+  }
 
   document.getElementById("statusbar").className = "bg-tone-" + meta.tone;
   document.getElementById("statusIcon").textContent = meta.icon;
@@ -142,7 +201,14 @@ function render(data){
     timerSubEl.textContent = "";
   }
 
-  document.getElementById("nextValue").textContent = data.nextAct || "—";
+  clearInterval(sceneInterval);
+  const tickScene = () => {
+    const idx = renderScene(data);
+    if (prevSceneIndex !== null && idx !== prevSceneIndex && idx >= 0) beepCue();
+    prevSceneIndex = idx;
+  };
+  tickScene();
+  sceneInterval = setInterval(tickScene, 1000);
 
   const overlay = document.getElementById("announce-overlay");
   const bg = document.getElementById("announce-bg");
@@ -150,8 +216,7 @@ function render(data){
   if (data.announcement && data.announcement.active && data.announcement.text) {
     overlay.classList.add("show");
     const color = data.announcement.color || "gold";
-    const colorMap = { gold:"var(--gold-bright)", crimson:"var(--crimson)", forest:"var(--forest)", steel:"var(--steel)" };
-    const c = colorMap[color] || colorMap.gold;
+    const c = announceColorMap[color] || announceColorMap.gold;
     bg.style.background = `radial-gradient(circle at 50% 40%, color-mix(in srgb, ${c} 18%, transparent), #0c0906 78%)`;
     text.style.color = c;
     document.getElementById("announce-tag").style.color = c;

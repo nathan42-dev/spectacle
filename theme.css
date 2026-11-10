@@ -78,6 +78,8 @@ body{background-image:var(--bg-vignette);background-attachment:fixed;}
 .tone-intermission{color:var(--gold);}
 .tone-encore{color:var(--ember);}
 .tone-end{color:var(--sub);}
+.tone-suspended{color:var(--ember);}
+.tone-cancelled{color:var(--crimson);}
 
 .bg-tone-before{background:linear-gradient(90deg, rgba(168,150,122,.10), transparent);}
 .bg-tone-doors{background:linear-gradient(90deg, rgba(77,124,150,.16), transparent);}
@@ -85,3 +87,12 @@ body{background-image:var(--bg-vignette);background-attachment:fixed;}
 .bg-tone-intermission{background:linear-gradient(90deg, rgba(201,162,39,.16), transparent);}
 .bg-tone-encore{background:linear-gradient(90deg, rgba(217,100,46,.18), transparent);}
 .bg-tone-end{background:linear-gradient(90deg, rgba(168,150,122,.10), transparent);}
+.bg-tone-suspended{background:linear-gradient(90deg, rgba(217,100,46,.20), transparent);}
+.bg-tone-cancelled{background:linear-gradient(90deg, rgba(163,33,47,.22), transparent);}
+
+/* ---- active show badge, shown on all screens ---- */
+.show-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--font-display);font-size:13px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--gold);opacity:.9;
+}

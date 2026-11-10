@@ -14,6 +14,7 @@
   #icon{font-size:64px;margin-bottom:18px;}
   #status-label{font-family:var(--font-display);font-size:min(6vw,58px);font-weight:700;letter-spacing:3px;text-transform:uppercase;}
   #status-sub{color:var(--sub);font-size:20px;margin-top:10px;font-style:italic;}
+  #show-name{margin-top:18px;}
 
   #timer-value{font-family:var(--font-mono);font-size:min(14vw,150px);font-weight:700;margin-top:50px;letter-spacing:2px;font-variant-numeric:tabular-nums;}
   #timer-caption{color:var(--sub);font-size:18px;margin-top:8px;letter-spacing:2px;text-transform:uppercase;font-family:var(--font-display);}
@@ -45,6 +46,7 @@
   <div id="icon">🏰</div>
   <div id="status-label">AVANT SPECTACLE</div>
   <div id="status-sub">Merci de patienter, les portes ouvriront bientôt</div>
+  <div class="show-badge" id="showBadge" style="display:none;"></div>
 
   <div id="timer-value" style="display:none;">--:--</div>
   <div id="timer-caption" style="display:none;">Avant le début</div>
@@ -74,6 +76,7 @@
 
 <script type="module">
 import { firebaseConfig, DB_PATH } from "./config.js";
+import { publicStatusMeta as statusMeta, fmtDuration, announceColorMap } from "./shared.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
@@ -81,27 +84,7 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const concertRef = ref(db, DB_PATH);
 
-const statusMeta = {
-  before:       { label: "AVANT SPECTACLE", sub: "Merci de patienter, les portes ouvriront bientôt", icon:"🏰", tone:"before" },
-  doors:        { label: "PORTES OUVERTES", sub: "Installez-vous, le spectacle va bientôt commencer", icon:"🚪", tone:"doors" },
-  live:         { label: "SPECTACLE EN COURS", sub: "Merci de rester silencieux pendant la représentation", icon:"🔥", tone:"live" },
-  intermission: { label: "ENTRACTE", sub: "Le spectacle reprend dans quelques instants", icon:"⏸", tone:"intermission" },
-  encore:       { label: "RAPPEL", sub: "", icon:"⚔", tone:"encore" },
-  end:          { label: "MERCI DE VOTRE VISITE", sub: "À très bientôt !", icon:"🏁", tone:"end" },
-};
-
 let timerInterval = null;
-function fmtDuration(ms){
-  const neg = ms < 0;
-  const abs = Math.abs(ms);
-  const totalSec = Math.floor(abs/1000);
-  const h = Math.floor(totalSec/3600);
-  const m = Math.floor((totalSec%3600)/60);
-  const s = totalSec%60;
-  const pad = n => String(n).padStart(2,'0');
-  const core = h>0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
-  return (neg ? "+" : "") + core;
-}
 
 function render(data){
   data = data || {};
@@ -112,6 +95,15 @@ function render(data){
   document.getElementById("status-label").textContent = data.statusLabel || meta.label;
   document.getElementById("status-label").className = "tone-" + meta.tone;
   document.getElementById("status-sub").textContent = data.statusSub || meta.sub;
+
+  const showBadge = document.getElementById("showBadge");
+  if (data.activeShowName) {
+    showBadge.style.display = "block";
+    showBadge.textContent = `${data.activeShowIcon || "🎭"} ${data.activeShowName}`;
+    showBadge.style.color = announceColorMap[data.activeShowColor] || announceColorMap.gold;
+  } else {
+    showBadge.style.display = "none";
+  }
 
   clearInterval(timerInterval);
   const timerValueEl = document.getElementById("timer-value");
@@ -140,8 +132,7 @@ function render(data){
   if (data.announcement && data.announcement.active && data.announcement.text) {
     overlay.classList.add("show");
     const color = data.announcement.color || "gold";
-    const colorMap = { gold:"var(--gold-bright)", crimson:"var(--crimson)", forest:"var(--forest)", steel:"var(--steel)" };
-    const c = colorMap[color] || colorMap.gold;
+    const c = announceColorMap[color] || announceColorMap.gold;
     bg.style.background = `radial-gradient(circle at 50% 40%, color-mix(in srgb, ${c} 18%, transparent), #0c0906 78%)`;
     text.style.color = c;
     document.getElementById("announce-tag").style.color = c;
