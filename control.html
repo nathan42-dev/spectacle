@@ -20,6 +20,12 @@
   main{padding:16px;max-width:520px;margin:0 auto;}
   section{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:18px;margin-bottom:16px;position:relative;}
   section h2{font-family:var(--font-display);font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin:0 0 14px;font-weight:600;}
+  section.spotlight{border-color:var(--gold);}
+
+  select{
+    width:100%;background:var(--bg);border:1px solid var(--line);border-radius:4px;
+    color:var(--text);padding:11px 12px;font-size:16px;font-family:var(--font-body);
+  }
 
   .status-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .status-btn{
@@ -54,15 +60,23 @@
   button.clear-danger{background:transparent;color:var(--crimson);border:1px solid var(--crimson);}
   button.ghost{background:var(--panel-2);color:var(--sub);border:1px solid var(--line);}
   button:active{transform:scale(.98);}
+  button:disabled{opacity:.4;cursor:not-allowed;}
 
   .presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
   .chip{border:1px solid var(--line);background:var(--panel-2);color:var(--text);border-radius:16px;padding:8px 14px;font-size:13px;cursor:pointer;}
 
   .order-row{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
-  .order-row input.time{flex:0 0 64px;}
-  .order-row input.name{flex:1;min-width:110px;}
+  .order-row input.time{flex:0 0 60px;}
+  .order-row input.name{flex:1 1 140px;min-width:110px;}
+  .order-row input.duration{flex:0 0 56px;}
+  .order-row input.note{flex:1 1 140px;min-width:110px;color:var(--sub);font-style:italic;}
   .order-row .mini-check{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--sub);}
-  .order-row .rm{flex:0 0 32px;height:32px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;color:var(--crimson);font-weight:700;cursor:pointer;}
+  .order-row .rm, .order-row .set-current{flex:0 0 32px;height:40px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;font-weight:700;cursor:pointer;}
+  .order-row .rm{color:var(--crimson);}
+  .order-row .set-current{color:var(--gold-bright);}
+  .order-row.is-current{outline:1px solid var(--gold);border-radius:4px;}
+  .scene-mode-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+  .scene-mode-row span{font-size:12px;color:var(--sub);}
 
   .color-picker{display:flex;gap:10px;margin-top:8px;}
   .color-swatch{width:36px;height:36px;border-radius:50%;border:2px solid transparent;cursor:pointer;}
@@ -71,6 +85,18 @@
   .history-item{font-size:12px;color:var(--sub);padding:8px 0;border-bottom:1px solid var(--line-soft);font-family:var(--font-mono);}
   .history-item:last-child{border-bottom:none;}
   .history-empty{font-size:12px;color:var(--sub);font-style:italic;}
+
+  .active-show-info{font-size:13px;color:var(--sub);margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft);}
+  .active-show-info b{color:var(--text);}
+
+  .show-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:14px;}
+  .show-row:last-child{border-bottom:none;}
+  .show-row .name{flex:1;font-weight:600;}
+  .show-row button{flex:0 0 auto;width:auto;margin:0;padding:6px 10px;font-size:13px;}
+  .show-empty{color:var(--sub);font-style:italic;font-size:13px;padding:6px 0;}
+
+  #showEditor{display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);}
+  #showEditor.open{display:block;}
 
   .toast{
     position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);
@@ -103,12 +129,93 @@
   <div class="conn bad" id="connIndicator">connexion…</div>
   <div class="links">
     <a href="display.html" target="_blank">Écran régie ↗</a>
+    <a href="technique.html" target="_blank">Écran technique ↗</a>
     <a href="loges.html" target="_blank">Écran loges ↗</a>
     <a href="public.html" target="_blank">Écran public ↗</a>
   </div>
 </header>
 
 <main>
+
+  <section class="spotlight">
+    <h2>Spectacle</h2>
+    <label>Choisir un spectacle</label>
+    <select id="showSelect"><option value="">— Aucun spectacle enregistré —</option></select>
+    <div class="row">
+      <button class="primary" id="btnStartShow" style="margin-top:12px;">▶ Démarrer</button>
+    </div>
+    <div class="row">
+      <button class="secondary" id="btnSuspendResume">⏸ Suspendre</button>
+      <button class="clear-danger" id="btnCancelShow">✕ Annuler</button>
+    </div>
+    <div class="active-show-info" id="activeShowInfo">Aucun spectacle actif pour le moment.</div>
+  </section>
+
+  <section>
+    <h2>Gérer les spectacles</h2>
+    <div id="showsManageList"><div class="show-empty">Aucun spectacle enregistré pour l'instant.</div></div>
+    <button class="ghost" id="btnNewShow" style="margin-top:10px;">+ Nouveau spectacle</button>
+
+    <div id="showEditor">
+      <label>Nom du spectacle</label>
+      <input type="text" id="showName" placeholder="Ex: Le Dernier Panache">
+      <div class="row">
+        <div>
+          <label>Icône (emoji)</label>
+          <input type="text" id="showIcon" placeholder="⚔" maxlength="4">
+        </div>
+        <div>
+          <label>Couleur d'identité</label>
+          <div class="color-picker" id="showColorPicker">
+            <div class="color-swatch selected" data-color="gold" style="background:var(--gold)"></div>
+            <div class="color-swatch" data-color="crimson" style="background:var(--crimson)"></div>
+            <div class="color-swatch" data-color="forest" style="background:var(--forest)"></div>
+            <div class="color-swatch" data-color="steel" style="background:var(--steel)"></div>
+          </div>
+        </div>
+      </div>
+
+      <label>Tombée de la nuit</label>
+      <input type="text" id="showNightfall" placeholder="Ex: 21h47">
+      <label>Plan de repli intempéries</label>
+      <input type="text" id="showPlanB" placeholder="Ex: Actif — scénario pluie B">
+      <label>Cavalerie / animaux</label>
+      <input type="text" id="showCavalry" placeholder="Ex: 12 chevaux, 3 rapaces">
+      <label>Pyrotechnie</label>
+      <input type="text" id="showPyro" placeholder="Ex: RAS">
+      <label>Figurants en scène</label>
+      <input type="text" id="showFigurants" placeholder="Ex: 140 en costume">
+      <label>Canal radio staff</label>
+      <input type="text" id="showRadioChannel" placeholder="Ex: Canal 3">
+      <label>Wi-Fi — réseau</label>
+      <input type="text" id="showWifiSsid" placeholder="STAFF-SPECTACLE">
+      <label>Wi-Fi — mot de passe</label>
+      <input type="text" id="showWifiPass" placeholder="motdepasse">
+      <label>Contact urgence</label>
+      <input type="text" id="showEmergencyContact" placeholder="Ex: Sécurité — 06 12 34 56 78">
+
+      <label>Déroulé type</label>
+      <div style="font-size:12px;color:var(--sub);margin-bottom:8px;">Heure (repère), nom de la scène, durée en minutes (pilote l'avancement automatique), note affichée à l'écran pendant la scène.</div>
+      <div id="showOrderRows"></div>
+      <button class="ghost" id="btnAddShowRow" style="margin-top:4px;">+ Ajouter une ligne</button>
+
+      <div class="row" style="margin-top:14px;">
+        <button class="primary" id="btnSaveShow">Enregistrer le spectacle</button>
+        <button class="secondary" id="btnCancelEditShow">Annuler</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Appel de régie</h2>
+    <label>Repère (nom de la cue)</label>
+    <input type="text" id="cueLabel" placeholder="Ex: Entrée cavalerie">
+    <div class="row">
+      <button class="secondary" id="btnStandby" style="border-color:var(--gold);color:var(--gold-bright);">⏳ Standby</button>
+      <button class="primary" id="btnGo">▶ TOP / GO</button>
+    </div>
+    <button class="ghost" id="btnClearCue">Effacer l'appel</button>
+  </section>
 
   <section>
     <h2>État du spectacle</h2>
@@ -170,20 +277,29 @@
   </section>
 
   <section>
-    <h2>Prochainement</h2>
+    <h2>Prochainement (texte de secours)</h2>
+    <div style="font-size:12px;color:var(--sub);margin-bottom:8px;">Utilisé seulement si le déroulé automatique ci-dessous est vide ou arrivé à sa fin.</div>
     <input type="text" id="nextAct" placeholder="Ex: Entrée de la cavalerie">
     <button class="secondary" id="btnSaveNext">Enregistrer</button>
   </section>
 
   <section>
-    <h2>Déroulé du spectacle</h2>
+    <h2>Déroulé du spectacle (en direct)</h2>
+    <div class="scene-mode-row">
+      <button class="secondary" id="btnAutoMode" style="margin:0;width:auto;">🤖 Mode automatique</button>
+      <span id="sceneModeInfo">Mode : automatique</span>
+    </div>
+    <div style="font-size:12px;color:var(--sub);margin-bottom:8px;">
+      En mode automatique, la scène "en cours" avance toute seule selon la durée de chaque ligne.
+      Clique ▶ sur une ligne pour reprendre la main manuellement à tout moment ; "🤖 Mode automatique" relance le calcul par durée.
+    </div>
     <div id="orderRows"></div>
     <button class="ghost" id="btnAddRow" style="margin-top:4px;">+ Ajouter une ligne</button>
     <button class="secondary" id="btnSaveOrder">Enregistrer le déroulé</button>
   </section>
 
   <section>
-    <h2>Infos spectacle</h2>
+    <h2>Infos spectacle (en direct)</h2>
     <label>Tombée de la nuit</label>
     <input type="text" id="nightfall" placeholder="Ex: 21h47">
     <label>Plan de repli intempéries</label>
@@ -200,7 +316,7 @@
   </section>
 
   <section>
-    <h2>Infos bandeau bas d'écran</h2>
+    <h2>Infos bandeau bas d'écran (en direct)</h2>
     <label>Wi-Fi — réseau</label>
     <input type="text" id="wifiSsid" placeholder="STAFF-SPECTACLE">
     <label>Wi-Fi — mot de passe</label>
@@ -217,9 +333,10 @@
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { firebaseConfig, DB_PATH, CONTROL_PIN } from "./config.js";
+import { firebaseConfig, DB_PATH, CONTROL_PIN, SHOWS_PATH } from "./config.js";
+import { computeSceneState } from "./shared.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, onValue, update, set, push as fbPush, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 // --- PIN gate ---
 const gate = document.getElementById("pinGate");
@@ -241,9 +358,13 @@ function checkPin(){
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const concertRef = ref(db, DB_PATH);
+const showsRef = ref(db, SHOWS_PATH);
 
 let currentData = {};
+let shows = {};
 let selectedColor = "gold";
+let selectedShowColor = "gold";
+let editingShowId = null;
 
 function showToast(msg){
   const t = document.getElementById("toast");
@@ -258,13 +379,256 @@ function push(patch){
     .catch(() => showToast("Erreur de connexion"));
 }
 
+/* ============================================================
+   SPECTACLES — sélection, démarrage, suspension, annulation
+   ============================================================ */
+
+function renderShowSelect(){
+  const sel = document.getElementById("showSelect");
+  const prev = sel.value;
+  const ids = Object.keys(shows);
+  sel.innerHTML = ids.length
+    ? ids.map(id => `<option value="${id}">${shows[id].icon || "🎭"} ${shows[id].name || "(sans nom)"}</option>`).join("")
+    : `<option value="">— Aucun spectacle enregistré —</option>`;
+  if (ids.includes(prev)) sel.value = prev;
+  else if (currentData.activeShowId && ids.includes(currentData.activeShowId)) sel.value = currentData.activeShowId;
+}
+
+function renderActiveShowInfo(){
+  const el = document.getElementById("activeShowInfo");
+  if (!currentData.activeShowName) {
+    el.innerHTML = "Aucun spectacle actif pour le moment.";
+  } else {
+    el.innerHTML = `Spectacle actif : <b>${currentData.activeShowIcon || "🎭"} ${currentData.activeShowName}</b> — statut : <b>${currentData.statusLabel || currentData.status || "—"}</b>`;
+  }
+  const suspendBtn = document.getElementById("btnSuspendResume");
+  if (currentData.status === "suspended") {
+    suspendBtn.textContent = "▶ Reprendre";
+  } else {
+    suspendBtn.textContent = "⏸ Suspendre";
+  }
+  const hasActive = !!currentData.activeShowName && currentData.status !== "cancelled";
+  suspendBtn.disabled = !hasActive;
+  document.getElementById("btnCancelShow").disabled = !hasActive;
+}
+
+document.getElementById("btnStartShow").addEventListener("click", () => {
+  const id = document.getElementById("showSelect").value;
+  if (!id || !shows[id]) return showToast("Choisis un spectacle d'abord");
+  const show = shows[id];
+  if (currentData.activeShowName && currentData.status !== "end" && currentData.status !== "cancelled") {
+    if (!confirm(`"${currentData.activeShowName}" est actuellement actif. Le remplacer par "${show.name}" ? Cela réinitialise l'écran (statut, minuteur, déroulé, annonces).`)) return;
+  }
+  const payload = {
+    activeShowId: id,
+    activeShowName: show.name || "",
+    activeShowIcon: show.icon || "🎭",
+    activeShowColor: show.color || "gold",
+    status: "before",
+    statusBeforeSuspend: null,
+    liveStartedAt: null,
+    pausedAccumMs: 0,
+    suspendedAt: null,
+    cueMode: "auto",
+    manualCurrentIndex: null,
+    timerRunning: false, timerEndAt: null, timerLabel: "", timerPublic: false,
+    nextAct: "",
+    runningOrder: show.runningOrder || [],
+    nightfall: show.nightfall || "",
+    planB: show.planB || "",
+    cavalry: show.cavalry || "",
+    pyro: show.pyro || "",
+    figurants: show.figurants || "",
+    radioChannel: show.radioChannel || "",
+    wifi: show.wifi || { ssid:"", pass:"" },
+    emergencyContact: show.emergencyContact || "",
+    weather: currentData.weather || "",
+    announcement: { text:"", color:"gold", active:false },
+    emergency: { active:false, text:"" },
+    cue: { state:"idle", label:"", ts: Date.now() },
+    history: [],
+    updatedAt: Date.now(),
+  };
+  set(concertRef, payload)
+    .then(() => {
+      showToast(`${show.name} démarré ✓`);
+      // resynchronise immédiatement les formulaires "en direct" avec le nouveau spectacle
+      syncLiveForms(payload);
+    })
+    .catch(() => showToast("Erreur de connexion"));
+});
+
+// Le temps passé en "suspendu" n'est pas compté dans l'avancement automatique
+// des scènes : pausedAccumMs cumule ce temps, mis à jour à chaque reprise.
+document.getElementById("btnSuspendResume").addEventListener("click", () => {
+  if (currentData.status === "suspended") {
+    const pausedMs = currentData.suspendedAt ? (Date.now() - currentData.suspendedAt) : 0;
+    push({
+      status: currentData.statusBeforeSuspend || "live",
+      statusBeforeSuspend: null,
+      suspendedAt: null,
+      pausedAccumMs: (currentData.pausedAccumMs || 0) + pausedMs,
+    });
+  } else {
+    push({ status: "suspended", statusBeforeSuspend: currentData.status || "before", suspendedAt: Date.now() });
+  }
+});
+
+document.getElementById("btnCancelShow").addEventListener("click", () => {
+  if (!confirm("Annuler le spectacle en cours ? C'est visible immédiatement sur tous les écrans, y compris l'écran public.")) return;
+  push({ status: "cancelled", statusBeforeSuspend: null, suspendedAt: null, timerRunning: false, cue: { state:"idle", label:"", ts: Date.now() } });
+});
+
+/* ---- gestion des fiches spectacles (CRUD) ---- */
+
+function renderShowsManageList(){
+  const el = document.getElementById("showsManageList");
+  const ids = Object.keys(shows);
+  if (!ids.length) {
+    el.innerHTML = '<div class="show-empty">Aucun spectacle enregistré pour l\'instant.</div>';
+    return;
+  }
+  el.innerHTML = ids.map(id => `
+    <div class="show-row">
+      <span class="name">${shows[id].icon || "🎭"} ${shows[id].name || "(sans nom)"}</span>
+      <button class="ghost edit-show" data-id="${id}">✎ Modifier</button>
+      <button class="clear-danger del-show" data-id="${id}">🗑</button>
+    </div>
+  `).join("");
+  el.querySelectorAll(".edit-show").forEach(b => b.addEventListener("click", () => openShowEditor(b.dataset.id)));
+  el.querySelectorAll(".del-show").forEach(b => b.addEventListener("click", () => {
+    const show = shows[b.dataset.id];
+    if (!confirm(`Supprimer la fiche "${show?.name || ''}" ? Cela n'affecte pas un spectacle déjà démarré.`)) return;
+    remove(ref(db, `${SHOWS_PATH}/${b.dataset.id}`)).then(() => showToast("Spectacle supprimé"));
+  }));
+}
+
+function addShowOrderRow(time="", name="", duration="", note=""){
+  const wrap = document.getElementById("showOrderRows");
+  const row = document.createElement("div");
+  row.className = "order-row";
+  row.innerHTML = `
+    <input type="text" class="time" placeholder="20h30" value="${time}">
+    <input type="text" class="name" placeholder="Nom de la scène / tableau" value="${name}">
+    <input type="number" class="duration" placeholder="min" min="0" step="0.5" value="${duration}">
+    <input type="text" class="note" placeholder="Note affichée (optionnel)" value="${note}">
+    <button class="rm">✕</button>
+  `;
+  row.querySelector(".rm").addEventListener("click", () => row.remove());
+  wrap.appendChild(row);
+}
+document.getElementById("btnAddShowRow").addEventListener("click", () => addShowOrderRow());
+
+document.getElementById("btnNewShow").addEventListener("click", () => openShowEditor(null));
+document.getElementById("btnCancelEditShow").addEventListener("click", () => closeShowEditor());
+
+document.getElementById("showColorPicker").addEventListener("click", (e) => {
+  const sw = e.target.closest(".color-swatch");
+  if (!sw) return;
+  selectedShowColor = sw.dataset.color;
+  document.querySelectorAll("#showColorPicker .color-swatch").forEach(s => s.classList.remove("selected"));
+  sw.classList.add("selected");
+});
+
+function openShowEditor(id){
+  editingShowId = id;
+  const show = id ? (shows[id] || {}) : {};
+  document.getElementById("showName").value = show.name || "";
+  document.getElementById("showIcon").value = show.icon || "";
+  document.getElementById("showNightfall").value = show.nightfall || "";
+  document.getElementById("showPlanB").value = show.planB || "";
+  document.getElementById("showCavalry").value = show.cavalry || "";
+  document.getElementById("showPyro").value = show.pyro || "";
+  document.getElementById("showFigurants").value = show.figurants || "";
+  document.getElementById("showRadioChannel").value = show.radioChannel || "";
+  document.getElementById("showWifiSsid").value = show.wifi?.ssid || "";
+  document.getElementById("showWifiPass").value = show.wifi?.pass || "";
+  document.getElementById("showEmergencyContact").value = show.emergencyContact || "";
+
+  selectedShowColor = show.color || "gold";
+  document.querySelectorAll("#showColorPicker .color-swatch").forEach(s => s.classList.toggle("selected", s.dataset.color === selectedShowColor));
+
+  document.getElementById("showOrderRows").innerHTML = "";
+  const order = show.runningOrder || [];
+  if (order.length) order.forEach(o => addShowOrderRow(o.time, o.name, o.duration ?? "", o.note || ""));
+  else { addShowOrderRow(); addShowOrderRow(); }
+
+  document.getElementById("showEditor").classList.add("open");
+}
+
+function closeShowEditor(){
+  editingShowId = null;
+  document.getElementById("showEditor").classList.remove("open");
+}
+
+document.getElementById("btnSaveShow").addEventListener("click", () => {
+  const name = document.getElementById("showName").value.trim();
+  if (!name) return showToast("Donne un nom au spectacle");
+  const orderRows = [...document.querySelectorAll("#showOrderRows .order-row")].map(r => ({
+    time: r.querySelector(".time").value,
+    name: r.querySelector(".name").value,
+    duration: r.querySelector(".duration").value ? Number(r.querySelector(".duration").value) : null,
+    note: r.querySelector(".note").value,
+  })).filter(r => r.name.trim() !== "");
+
+  const showData = {
+    name,
+    icon: document.getElementById("showIcon").value.trim() || "🎭",
+    color: selectedShowColor,
+    nightfall: document.getElementById("showNightfall").value,
+    planB: document.getElementById("showPlanB").value,
+    cavalry: document.getElementById("showCavalry").value,
+    pyro: document.getElementById("showPyro").value,
+    figurants: document.getElementById("showFigurants").value,
+    radioChannel: document.getElementById("showRadioChannel").value,
+    wifi: { ssid: document.getElementById("showWifiSsid").value, pass: document.getElementById("showWifiPass").value },
+    emergencyContact: document.getElementById("showEmergencyContact").value,
+    runningOrder: orderRows,
+    updatedAt: Date.now(),
+  };
+
+  const writeOp = editingShowId
+    ? update(ref(db, `${SHOWS_PATH}/${editingShowId}`), showData)
+    : set(fbPush(showsRef), { ...showData, createdAt: Date.now() });
+
+  writeOp.then(() => { showToast("Spectacle enregistré ✓"); closeShowEditor(); })
+    .catch(() => showToast("Erreur de connexion"));
+});
+
+/* ============================================================
+   CONTRÔLES EN DIRECT (statut, minuteur, annonces, urgence…)
+   ============================================================ */
+
 // --- status buttons ---
 document.querySelectorAll(".status-btn").forEach(btn => {
-  btn.addEventListener("click", () => push({ status: btn.dataset.status }));
+  btn.addEventListener("click", () => {
+    const status = btn.dataset.status;
+    if (status === "live") {
+      push({ status, liveStartedAt: currentData.liveStartedAt || Date.now() });
+    } else if (status === "before") {
+      // Repart de zéro : redémarre le chrono et le calcul automatique des scènes.
+      push({ status, liveStartedAt: null, pausedAccumMs: 0, suspendedAt: null, cueMode: "auto", manualCurrentIndex: null });
+    } else {
+      push({ status });
+    }
+  });
 });
 function highlightStatus(status){
   document.querySelectorAll(".status-btn").forEach(b => b.classList.toggle("active", b.dataset.status === status));
 }
+
+// --- appel de régie (standby / top) ---
+document.getElementById("btnStandby").addEventListener("click", () => {
+  const label = document.getElementById("cueLabel").value.trim() || "—";
+  push({ cue: { state: "standby", label, ts: Date.now() } });
+});
+document.getElementById("btnGo").addEventListener("click", () => {
+  const label = document.getElementById("cueLabel").value.trim() || "—";
+  push({ cue: { state: "go", label, ts: Date.now() } });
+});
+document.getElementById("btnClearCue").addEventListener("click", () => {
+  push({ cue: { state: "idle", label: "", ts: Date.now() } });
+});
 
 // --- timer ---
 document.getElementById("btnStartTimer").addEventListener("click", () => {
@@ -281,7 +645,7 @@ document.getElementById("colorPicker").addEventListener("click", (e) => {
   const sw = e.target.closest(".color-swatch");
   if (!sw) return;
   selectedColor = sw.dataset.color;
-  document.querySelectorAll(".color-swatch").forEach(s => s.classList.remove("selected"));
+  document.querySelectorAll("#colorPicker .color-swatch").forEach(s => s.classList.remove("selected"));
   sw.classList.add("selected");
 });
 document.querySelectorAll(".presets .chip").forEach(chip => {
@@ -312,33 +676,59 @@ document.getElementById("btnSaveNext").addEventListener("click", () => {
   push({ nextAct: document.getElementById("nextAct").value });
 });
 
-// --- running order ---
-function addOrderRow(time="", name="", current=false, done=false){
+// --- running order (en direct) : avance automatiquement par durée, ou
+// manuellement via le bouton ▶ sur une ligne (voir computeSceneState côté
+// écrans d'affichage, dans shared.js) ---
+function addOrderRow(time="", name="", duration="", note=""){
   const wrap = document.getElementById("orderRows");
   const row = document.createElement("div");
   row.className = "order-row";
   row.innerHTML = `
     <input type="text" class="time" placeholder="20h30" value="${time}">
     <input type="text" class="name" placeholder="Nom de la scène / tableau" value="${name}">
-    <label class="mini-check"><input type="checkbox" class="cur" ${current ? "checked":""}>en cours</label>
-    <label class="mini-check"><input type="checkbox" class="done" ${done ? "checked":""}>fait</label>
+    <input type="number" class="duration" placeholder="min" min="0" step="0.5" value="${duration}">
+    <input type="text" class="note" placeholder="Note (optionnel)" value="${note}">
+    <button type="button" class="set-current" title="Définir comme scène en cours">▶</button>
     <button class="rm">✕</button>
   `;
   row.querySelector(".rm").addEventListener("click", () => row.remove());
+  row.querySelector(".set-current").addEventListener("click", () => {
+    const idx = [...wrap.children].indexOf(row);
+    push({ cueMode: "manual", manualCurrentIndex: idx });
+  });
   wrap.appendChild(row);
 }
 document.getElementById("btnAddRow").addEventListener("click", () => addOrderRow());
+document.getElementById("btnAutoMode").addEventListener("click", () => {
+  push({ cueMode: "auto", manualCurrentIndex: null });
+});
 document.getElementById("btnSaveOrder").addEventListener("click", () => {
-  const rows = [...document.querySelectorAll(".order-row")].map(r => ({
+  const rows = [...document.querySelectorAll("#orderRows .order-row")].map(r => ({
     time: r.querySelector(".time").value,
     name: r.querySelector(".name").value,
-    current: r.querySelector(".cur").checked,
-    done: r.querySelector(".done").checked,
+    duration: r.querySelector(".duration").value ? Number(r.querySelector(".duration").value) : null,
+    note: r.querySelector(".note").value,
   })).filter(r => r.name.trim() !== "");
   push({ runningOrder: rows });
 });
 
-// --- show info (Puy du Fou style fields) ---
+let sceneModeInterval = null;
+function renderSceneModeAndHighlight(data){
+  const order = data.runningOrder || [];
+  document.getElementById("sceneModeInfo").textContent = data.cueMode === "manual"
+    ? "Mode : manuel — scène en cours définie à la main"
+    : "Mode : automatique" + (order.length ? "" : " (ajoute des durées pour l'activer)");
+  const { currentIndex } = computeSceneState(data);
+  [...document.querySelectorAll("#orderRows .order-row")].forEach((row, i) => {
+    row.classList.toggle("is-current", i === currentIndex);
+  });
+}
+function startSceneModeTicker(){
+  clearInterval(sceneModeInterval);
+  sceneModeInterval = setInterval(() => renderSceneModeAndHighlight(currentData), 1000);
+}
+
+// --- show info (en direct) ---
 document.getElementById("btnSaveShowInfo").addEventListener("click", () => {
   push({
     nightfall: document.getElementById("nightfall").value,
@@ -350,7 +740,7 @@ document.getElementById("btnSaveShowInfo").addEventListener("click", () => {
   });
 });
 
-// --- bottom strip info ---
+// --- bottom strip info (en direct) ---
 document.getElementById("btnSaveInfo").addEventListener("click", () => {
   push({
     wifi: {
@@ -375,6 +765,28 @@ function renderHistory(history){
   }).join("");
 }
 
+// Resynchronise les champs "en direct" avec un nouvel état (utilisé après "Démarrer")
+function syncLiveForms(data){
+  document.getElementById("nextAct").value = data.nextAct || "";
+  document.getElementById("wifiSsid").value = data.wifi?.ssid || "";
+  document.getElementById("wifiPass").value = data.wifi?.pass || "";
+  document.getElementById("emergencyContact").value = data.emergencyContact || "";
+  document.getElementById("nightfall").value = data.nightfall || "";
+  document.getElementById("planB").value = data.planB || "";
+  document.getElementById("cavalry").value = data.cavalry || "";
+  document.getElementById("pyro").value = data.pyro || "";
+  document.getElementById("figurants").value = data.figurants || "";
+  document.getElementById("radioChannel").value = data.radioChannel || "";
+  document.getElementById("emergencyText").value = data.emergency?.text || "";
+  document.getElementById("cueLabel").value = data.cue?.label || "";
+
+  document.getElementById("orderRows").innerHTML = "";
+  const order = data.runningOrder || [];
+  if (order.length) order.forEach(o => addOrderRow(o.time, o.name, o.duration ?? "", o.note || ""));
+  else { addOrderRow(); addOrderRow(); }
+  renderSceneModeAndHighlight(data);
+}
+
 // --- sync form fields with current DB state ---
 let formsInitialized = false;
 onValue(concertRef, (snap) => {
@@ -384,32 +796,25 @@ onValue(concertRef, (snap) => {
   currentData = data;
   highlightStatus(data.status);
   renderHistory(data.history);
+  renderActiveShowInfo();
+  renderShowSelect();
+  renderSceneModeAndHighlight(data);
+  startSceneModeTicker();
 
   if (!formsInitialized) {
     formsInitialized = true;
-    document.getElementById("nextAct").value = data.nextAct || "";
-    document.getElementById("wifiSsid").value = data.wifi?.ssid || "";
-    document.getElementById("wifiPass").value = data.wifi?.pass || "";
     document.getElementById("weather").value = data.weather || "";
-    document.getElementById("emergencyContact").value = data.emergencyContact || "";
-    document.getElementById("nightfall").value = data.nightfall || "";
-    document.getElementById("planB").value = data.planB || "";
-    document.getElementById("cavalry").value = data.cavalry || "";
-    document.getElementById("pyro").value = data.pyro || "";
-    document.getElementById("figurants").value = data.figurants || "";
-    document.getElementById("radioChannel").value = data.radioChannel || "";
-    document.getElementById("emergencyText").value = data.emergency?.text || "";
-
-    const order = data.runningOrder || [];
-    if (order.length) {
-      order.forEach(o => addOrderRow(o.time, o.name, o.current, o.done));
-    } else {
-      addOrderRow(); addOrderRow();
-    }
+    syncLiveForms(data);
   }
 }, () => {
   document.getElementById("connIndicator").textContent = "hors ligne";
   document.getElementById("connIndicator").className = "conn bad";
+});
+
+onValue(showsRef, (snap) => {
+  shows = snap.val() || {};
+  renderShowSelect();
+  renderShowsManageList();
 });
 </script>
 </body>
