@@ -184,7 +184,6 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const concertRef = ref(db, DB_PATH);
 
-let timerInterval = null;
 let elapsedInterval = null;
 let sceneInterval = null;
 let prevAnnounceActive = false;
@@ -193,10 +192,17 @@ let prevCueTs = 0;
 let prevStatus = null;
 let prevSceneIndex = null;
 
+// Met à jour le gros minuteur central ET le déroulé à droite, chaque seconde.
+// Priorité : tant qu'une scène est "en cours" (mode auto par durée, ou mode
+// manuel figé sur une scène), le gros minuteur affiche le nom de cette scène
+// et son temps restant estimé. Il ne retombe sur le minuteur libre (section
+// "Minutage" de control.html) que quand aucune scène n'est active — avant le
+// début du spectacle, ou après la dernière scène du déroulé.
 function renderOrderAndNext(data){
   const list = document.getElementById("order-list");
   const order = data.runningOrder || [];
   const { currentIndex, remainingMs } = computeSceneState(data);
+  const current = currentIndex >= 0 ? order[currentIndex] : null;
 
   document.getElementById("modeFlag").textContent = data.cueMode === "manual" ? "Main manuelle" : (order.length ? "Auto" : "");
 
@@ -209,7 +215,6 @@ function renderOrderAndNext(data){
           <div class="time">${item.time || ''}</div>
           <div class="name">${item.name || ''}</div>
           ${item.note ? `<span class="note">${item.note}</span>` : ''}
-          ${i === currentIndex && remainingMs !== null ? `<span class="remaining">Reste ${fmtDuration(remainingMs)}</span>` : ''}
         </div>
       </div>
     `).join("");
@@ -217,6 +222,30 @@ function renderOrderAndNext(data){
 
   const next = currentIndex >= 0 && currentIndex + 1 < order.length ? order[currentIndex + 1] : null;
   document.getElementById("nextValue").textContent = next ? next.name : (data.nextAct || "—");
+
+  const timerLabelEl = document.getElementById("timer-label");
+  const timerValueEl = document.getElementById("timer-value");
+  const timerSubEl = document.getElementById("timer-sub");
+
+  if (current && remainingMs !== null) {
+    timerLabelEl.textContent = current.name || "SCÈNE EN COURS";
+    timerValueEl.textContent = fmtDuration(remainingMs);
+    timerValueEl.classList.remove("over");
+    timerValueEl.classList.toggle("warn", remainingMs < 60000);
+    timerSubEl.textContent = current.note || "Temps restant estimé";
+  } else if (data.timerEndAt && data.timerRunning) {
+    const remaining = data.timerEndAt - Date.now();
+    timerLabelEl.textContent = data.timerLabel || "MINUTAGE";
+    timerValueEl.textContent = fmtDuration(remaining);
+    timerValueEl.classList.toggle("over", remaining < 0);
+    timerValueEl.classList.toggle("warn", remaining >= 0 && remaining < 60000);
+    timerSubEl.textContent = remaining < 0 ? "Dépassement" : "Restant";
+  } else {
+    timerLabelEl.textContent = data.timerLabel || "MINUTAGE";
+    timerValueEl.textContent = "--:--";
+    timerValueEl.classList.remove("over","warn");
+    timerSubEl.textContent = "";
+  }
 
   return currentIndex;
 }
@@ -288,29 +317,6 @@ function render(data){
   document.getElementById("statusLabel").textContent = data.statusLabel || meta.label;
   document.getElementById("statusLabel").className = "status-label tone-" + meta.tone;
   document.getElementById("statusSub").textContent = data.statusSub || meta.sub;
-
-  // timer
-  clearInterval(timerInterval);
-  const timerLabelEl = document.getElementById("timer-label");
-  const timerValueEl = document.getElementById("timer-value");
-  const timerSubEl = document.getElementById("timer-sub");
-  timerLabelEl.textContent = data.timerLabel || "MINUTAGE";
-
-  if (data.timerEndAt && data.timerRunning) {
-    const update = () => {
-      const remaining = data.timerEndAt - Date.now();
-      timerValueEl.textContent = fmtDuration(remaining);
-      timerValueEl.classList.toggle("over", remaining < 0);
-      timerValueEl.classList.toggle("warn", remaining >= 0 && remaining < 60000);
-      timerSubEl.textContent = remaining < 0 ? "Dépassement" : "Restant";
-    };
-    update();
-    timerInterval = setInterval(update, 1000);
-  } else {
-    timerValueEl.textContent = "--:--";
-    timerValueEl.classList.remove("over","warn");
-    timerSubEl.textContent = "";
-  }
 
   document.getElementById("nightfallValue").textContent = data.nightfall || "—";
   document.getElementById("planBValue").textContent = data.planB || "—";

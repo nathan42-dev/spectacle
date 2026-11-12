@@ -20,15 +20,11 @@
   .status-sub{color:var(--sub);font-size:16px;margin-top:6px;font-style:italic;}
 
   #center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;}
-  #timer-value{font-family:var(--font-mono);font-size:min(22vw,220px);font-weight:700;letter-spacing:2px;line-height:1;font-variant-numeric:tabular-nums;}
+  #timer-label{font-family:var(--font-display);font-size:min(4.5vw,32px);font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold-bright);}
+  #timer-value{font-family:var(--font-mono);font-size:min(22vw,220px);font-weight:700;letter-spacing:2px;line-height:1;font-variant-numeric:tabular-nums;margin-top:8px;}
   #timer-value.warn{color:var(--ember);}
   #timer-value.over{color:var(--crimson);}
   #timer-sub{margin-top:10px;color:var(--sub);font-size:18px;font-style:italic;}
-
-  #current-scene{margin-top:36px;}
-  #current-scene .value{font-size:40px;font-weight:700;margin-top:10px;font-family:var(--font-display);color:var(--gold-bright);}
-  #current-scene .note{display:block;font-size:16px;color:var(--sub);font-style:italic;margin-top:6px;}
-  #current-scene .remaining{display:block;font-family:var(--font-mono);font-size:16px;color:var(--sub);margin-top:8px;}
 
   #next{margin-top:30px;}
   #next .value{font-size:26px;font-weight:600;margin-top:8px;font-family:var(--font-display);color:var(--text);}
@@ -71,14 +67,9 @@
   </div>
 
   <div id="center">
+    <div id="timer-label">MINUTAGE</div>
     <div id="timer-value">--:--</div>
     <div id="timer-sub"></div>
-    <div id="current-scene">
-      <div class="eyebrow">Scène en cours</div>
-      <div class="value" id="currentSceneValue">—</div>
-      <span class="note" id="currentSceneNote"></span>
-      <span class="remaining" id="currentSceneRemaining"></span>
-    </div>
     <div id="next">
       <div class="eyebrow">Prochaine entrée en scène</div>
       <div class="value" id="nextValue">—</div>
@@ -115,7 +106,6 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const concertRef = ref(db, DB_PATH);
 
-let timerInterval = null;
 let sceneInterval = null;
 let prevAnnounceActive = false;
 let prevEmergencyActive = false;
@@ -123,15 +113,39 @@ let prevCueTs = 0;
 let prevStatus = null;
 let prevSceneIndex = null;
 
+// Gros minuteur central : priorité à la scène en cours (mode auto par durée,
+// ou mode manuel figé sur une scène) — il ne retombe sur le minuteur libre
+// (section "Minutage" de control.html) que quand aucune scène n'est active.
 function renderScene(data){
   const order = data.runningOrder || [];
   const { currentIndex, remainingMs } = computeSceneState(data);
   const current = currentIndex >= 0 ? order[currentIndex] : null;
   const next = currentIndex >= 0 && currentIndex + 1 < order.length ? order[currentIndex + 1] : null;
 
-  document.getElementById("currentSceneValue").textContent = current ? current.name : "—";
-  document.getElementById("currentSceneNote").textContent = current?.note || "";
-  document.getElementById("currentSceneRemaining").textContent = (current && remainingMs !== null) ? `Reste ${fmtDuration(remainingMs)}` : "";
+  const labelEl = document.getElementById("timer-label");
+  const valueEl = document.getElementById("timer-value");
+  const subEl = document.getElementById("timer-sub");
+
+  if (current && remainingMs !== null) {
+    labelEl.textContent = current.name || "SCÈNE EN COURS";
+    valueEl.textContent = fmtDuration(remainingMs);
+    valueEl.classList.remove("over");
+    valueEl.classList.toggle("warn", remainingMs < 60000);
+    subEl.textContent = current.note || "Temps restant estimé";
+  } else if (data.timerEndAt && data.timerRunning) {
+    const remaining = data.timerEndAt - Date.now();
+    labelEl.textContent = data.timerLabel || "MINUTAGE";
+    valueEl.textContent = fmtDuration(remaining);
+    valueEl.classList.toggle("over", remaining < 0);
+    valueEl.classList.toggle("warn", remaining >= 0 && remaining < 60000);
+    subEl.textContent = remaining < 0 ? "Dépassement" : "Restant";
+  } else {
+    labelEl.textContent = data.timerLabel || "MINUTAGE";
+    valueEl.textContent = "--:--";
+    valueEl.classList.remove("over","warn");
+    subEl.textContent = "";
+  }
+
   document.getElementById("nextValue").textContent = next ? next.name : (data.nextAct || "—");
 
   return currentIndex;
@@ -181,25 +195,6 @@ function render(data){
   document.getElementById("statusLabel").textContent = data.statusLabel || meta.label;
   document.getElementById("statusLabel").className = "status-label tone-" + meta.tone;
   document.getElementById("statusSub").textContent = data.statusSub || meta.sub;
-
-  clearInterval(timerInterval);
-  const timerValueEl = document.getElementById("timer-value");
-  const timerSubEl = document.getElementById("timer-sub");
-  if (data.timerEndAt && data.timerRunning) {
-    const update = () => {
-      const remaining = data.timerEndAt - Date.now();
-      timerValueEl.textContent = fmtDuration(remaining);
-      timerValueEl.classList.toggle("over", remaining < 0);
-      timerValueEl.classList.toggle("warn", remaining >= 0 && remaining < 60000);
-      timerSubEl.textContent = (data.timerLabel || "Minutage") + (remaining < 0 ? " — dépassement" : "");
-    };
-    update();
-    timerInterval = setInterval(update, 1000);
-  } else {
-    timerValueEl.textContent = "--:--";
-    timerValueEl.classList.remove("over","warn");
-    timerSubEl.textContent = "";
-  }
 
   clearInterval(sceneInterval);
   const tickScene = () => {

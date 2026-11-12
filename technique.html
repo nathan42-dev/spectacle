@@ -98,7 +98,7 @@
 
   <div id="grid">
     <div class="panel">
-      <h2>Minutage</h2>
+      <h2 id="timer-label">Minutage</h2>
       <div id="timer-value">--:--</div>
       <div id="timer-sub"></div>
       <h2 style="margin-top:26px;">Déroulé</h2>
@@ -153,7 +153,6 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const concertRef = ref(db, DB_PATH);
 
-let timerInterval = null;
 let sceneInterval = null;
 let prevAnnounceActive = false;
 let prevEmergencyActive = false;
@@ -161,10 +160,14 @@ let prevCueTs = 0;
 let prevStatus = null;
 let prevSceneIndex = null;
 
+// Pilote à la fois le déroulé ET le minuteur en haut du panneau : tant
+// qu'une scène est en cours (auto par durée, ou manuel figé), le minuteur
+// affiche son temps restant ; sinon il retombe sur le minuteur libre.
 function renderOrder(data){
   const list = document.getElementById("order-list");
   const order = data.runningOrder || [];
   const { currentIndex, remainingMs } = computeSceneState(data);
+  const current = currentIndex >= 0 ? order[currentIndex] : null;
 
   if (!order.length) {
     list.innerHTML = '<div class="order-empty">Aucun déroulé configuré</div>';
@@ -175,11 +178,35 @@ function renderOrder(data){
         <div style="flex:1;">
           <div class="name">${item.name || ''}</div>
           ${item.note ? `<span class="note">${item.note}</span>` : ''}
-          ${i === currentIndex && remainingMs !== null ? `<span class="remaining">Reste ${fmtDuration(remainingMs)}</span>` : ''}
         </div>
       </div>
     `).join("");
   }
+
+  const labelEl = document.getElementById("timer-label");
+  const valueEl = document.getElementById("timer-value");
+  const subEl = document.getElementById("timer-sub");
+
+  if (current && remainingMs !== null) {
+    labelEl.textContent = current.name || "Scène en cours";
+    valueEl.textContent = fmtDuration(remainingMs);
+    valueEl.classList.remove("over");
+    valueEl.classList.toggle("warn", remainingMs < 60000);
+    subEl.textContent = current.note || "Temps restant estimé";
+  } else if (data.timerEndAt && data.timerRunning) {
+    const remaining = data.timerEndAt - Date.now();
+    labelEl.textContent = data.timerLabel || "Minutage";
+    valueEl.textContent = fmtDuration(remaining);
+    valueEl.classList.toggle("over", remaining < 0);
+    valueEl.classList.toggle("warn", remaining >= 0 && remaining < 60000);
+    subEl.textContent = remaining < 0 ? "Dépassement" : "Restant";
+  } else {
+    labelEl.textContent = data.timerLabel || "Minutage";
+    valueEl.textContent = "--:--";
+    valueEl.classList.remove("over","warn");
+    subEl.textContent = "";
+  }
+
   return currentIndex;
 }
 
@@ -227,25 +254,6 @@ function render(data){
   document.getElementById("statusLabel").textContent = data.statusLabel || meta.label;
   document.getElementById("statusLabel").className = "status-label tone-" + meta.tone;
   document.getElementById("statusSub").textContent = data.statusSub || meta.sub;
-
-  clearInterval(timerInterval);
-  const timerValueEl = document.getElementById("timer-value");
-  const timerSubEl = document.getElementById("timer-sub");
-  if (data.timerEndAt && data.timerRunning) {
-    const update = () => {
-      const remaining = data.timerEndAt - Date.now();
-      timerValueEl.textContent = fmtDuration(remaining);
-      timerValueEl.classList.toggle("over", remaining < 0);
-      timerValueEl.classList.toggle("warn", remaining >= 0 && remaining < 60000);
-      timerSubEl.textContent = (data.timerLabel || "Minutage") + (remaining < 0 ? " — dépassement" : "");
-    };
-    update();
-    timerInterval = setInterval(update, 1000);
-  } else {
-    timerValueEl.textContent = "--:--";
-    timerValueEl.classList.remove("over","warn");
-    timerSubEl.textContent = "";
-  }
 
   clearInterval(sceneInterval);
   const tickOrder = () => {
